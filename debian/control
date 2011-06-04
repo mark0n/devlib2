@@ -1,0 +1,89 @@
+Source: devlib2
+Section: devel
+Priority: extra
+Maintainer: Michael Davidsaver <mdavidsaver@bnl.gov>
+Build-Depends: debhelper (>= 7), epics-debhelper (>= 6~),
+               epics-dev (>= 3.14.11-2),
+               epics-msi,
+               rtems-epics-mvme2100,
+               rtems-epics-mvme2307,
+               rtems-epics-mvme3100,
+               rtems-epics-mvme5500,
+XS-Rtems-Build-Depends: rtems-epics
+X-Epics-Targets: .*
+Standards-Version: 3.8.0
+Homepage: http://epics.sf.net/devlib2
+
+Package: libdevlib2.1
+Architecture: any
+Section: libs
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: VME and PCI bus access library
+ devLib2 is an extension to the EPICS OS independent VME bus access
+ library (devLib v1) found in the 3.14.x series.
+ The v2 library is an overlay and extension to the v1 library and
+ not a replacement.
+ .
+ This package provides shared libraries
+
+Package: epics-devlib2-dev
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends},
+         libdevlib2.1 (= ${binary:Version}),
+Description: VME and PCI bus access library
+ devLib2 is an extension to the EPICS OS independent VME bus access
+ library (devLib v1) found in the 3.14.x series.
+ The v2 library is an overlay and extension to the v1 library and
+ not a replacement.
+ .
+ This package provides files needed to build an
+ IOC with the iocStats support.
+
+
+Package: rtems-devlib2-mvme2100
+Architecture: all
+Depends: ${rtems:Depends}, epics-devlib2-dev (= ${binary:Version}),
+         ${misc:Depends},
+Description: VME and PCI bus access library
+ devLib2 is an extension to the EPICS OS independent VME bus access
+ library (devLib v1) found in the 3.14.x series.
+ The v2 library is an overlay and extension to the v1 library and
+ not a replacement.
+ .
+ This package contains support for the MVME2100 PowerPC based VME SBC.
+
+Package: rtems-devlib2-mvme2307
+Architecture: all
+Depends: ${rtems:Depends}, epics-devlib2-dev (= ${binary:Version}),
+         ${misc:Depends},
+Description: VME and PCI bus access library
+ devLib2 is an extension to the EPICS OS independent VME bus access
+ library (devLib v1) found in the 3.14.x series.
+ The v2 library is an overlay and extension to the v1 library and
+ not a replacement.
+ .
+ This package contains support for the MVME2307 PowerPC based VME SBC.
+
+Package: rtems-devlib2-mvme3100
+Architecture: all
+Depends: ${rtems:Depends}, epics-devlib2-dev (= ${binary:Version}),
+         ${misc:Depends},
+Description: VME and PCI bus access library
+ devLib2 is an extension to the EPICS OS independent VME bus access
+ library (devLib v1) found in the 3.14.x series.
+ The v2 library is an overlay and extension to the v1 library and
+ not a replacement.
+ .
+ This package contains support for the MVME3100 PowerPC based VME SBC.
+
+Package: rtems-devlib2-mvme5500
+Architecture: all
+Depends: ${rtems:Depends}, epics-devlib2-dev (= ${binary:Version}),
+         ${misc:Depends},
+Description: VME and PCI bus access library
+ devLib2 is an extension to the EPICS OS independent VME bus access
+ library (devLib v1) found in the 3.14.x series.
+ The v2 library is an overlay and extension to the v1 library and
+ not a replacement.
+ .
+ This package contains support for the MVME5500 PowerPC based VME SBC.
