@@ -1,0 +1,22 @@
+From: Michael Davidsaver <mdavidsaver@bnl.gov>
+Date: Sat, 4 Jun 2011 18:41:49 -0400
+Subject: [PATCH] fix ldflags
+
+Don't want -Werror in production build
+Add --as-needed
+---
+ configure/CONFIG_SITE |    3 +--
+ 1 files changed, 1 insertions(+), 2 deletions(-)
+
+diff --git a/configure/CONFIG_SITE b/configure/CONFIG_SITE
+index fb699ca..aecd695 100644
+--- a/configure/CONFIG_SITE
++++ b/configure/CONFIG_SITE
+@@ -24,5 +24,4 @@
+ # define INSTALL_LOCATION here
+ #INSTALL_LOCATION=<fullpathname>
+ 
+-USR_CFLAGS += -Werror
+-USR_CXXFLAGS += -Werror
++USR_LDFLAGS += -Wl,--as-needed
+-- 
