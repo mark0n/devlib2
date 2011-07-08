@@ -1,2 +1,5 @@
 0001-fix-base-path.patch
 0002-fix-ldflags.patch
+0003-linux-follow-changes-to-sys.patch
+0004-fix-warning-on-linux-64.patch
+0005-PCI-diagnostics.patch
