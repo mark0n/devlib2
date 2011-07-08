@@ -1,3 +1,12 @@
+devlib2 (2.1-2) unstable; urgency=low
+
+  * Add patches since 2.1 release
+      linux: location of uio entries in /sys changed
+      fix warning on amd64
+      add diagnostic functions
+
+ -- Michael Davidsaver <mdavidsaver@bnl.gov>  Fri, 08 Jul 2011 10:28:26 -0400
+
 devlib2 (2.1-1) unstable; urgency=low
 
   * First version
