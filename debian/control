@@ -14,7 +14,7 @@ X-Epics-Targets: .*
 Standards-Version: 3.8.0
 Homepage: http://epics.sf.net/devlib2
 
-Package: libdevlib2.1
+Package: libdevlib2.4
 Architecture: any
 Section: libs
 Depends: ${shlibs:Depends}, ${misc:Depends}
@@ -29,7 +29,7 @@ Description: VME and PCI bus access library
 Package: epics-devlib2-dev
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends},
-         libdevlib2.1 (= ${binary:Version}),
+         libdevlib2.4 (= ${binary:Version}),
 Description: VME and PCI bus access library
  devLib2 is an extension to the EPICS OS independent VME bus access
  library (devLib v1) found in the 3.14.x series.
