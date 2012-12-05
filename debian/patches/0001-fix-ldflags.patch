@@ -5,18 +5,17 @@ Subject: [PATCH] fix ldflags
 Don't want -Werror in production build
 Add --as-needed
 ---
- configure/CONFIG_SITE |    3 +--
- 1 files changed, 1 insertions(+), 2 deletions(-)
+ configure/CONFIG_SITE |    2 ++
+ 1 files changed, 2 insertions(+), 0 deletions(-)
 
 diff --git a/configure/CONFIG_SITE b/configure/CONFIG_SITE
-index fb699ca..aecd695 100644
+index 83a7128..aecd695 100644
 --- a/configure/CONFIG_SITE
 +++ b/configure/CONFIG_SITE
-@@ -24,5 +24,4 @@
+@@ -23,3 +23,5 @@
+ # If you don't want to install into $(TOP) then
  # define INSTALL_LOCATION here
  #INSTALL_LOCATION=<fullpathname>
- 
--USR_CFLAGS += -Werror
--USR_CXXFLAGS += -Werror
++
 +USR_LDFLAGS += -Wl,--as-needed
 -- 
