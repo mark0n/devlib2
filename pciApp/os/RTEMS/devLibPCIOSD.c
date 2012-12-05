@@ -4,7 +4,7 @@
 
 #include <rtems/pci.h>
 #include <rtems/endian.h>
-#include <bsp/irq.h>
+#include <rtems/irq.h>
 
 #include <dbDefs.h>
 
@@ -77,7 +77,7 @@ int rtemsDevPCIDisconnectInterrupt(
 
 devLibPCI prtemsPCI = {
   "native",
-  NULL, NULL,
+  sharedDevPCIInit, NULL,
   sharedDevPCIFindCB,
   sharedDevPCIToLocalAddr,
   sharedDevPCIBarLen,

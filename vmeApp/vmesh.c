@@ -71,7 +71,7 @@ void vmeread(epicsUInt32 addr, int amod, int dmod, int count)
     return;
   }
 
-  epicsPrintf("Mapped to 0x%08x for %d bytes\n",(unsigned int)mptr,dbytes*count);
+  epicsPrintf("Mapped to 0x%08lx for %d bytes\n",(unsigned long)mptr,dbytes*count);
 
   if( devReadProbe(
     dbytes,
@@ -106,12 +106,12 @@ static const iocshArg * const vmereadArgs[4] =
 static const iocshFuncDef vmereadeFuncDef =
     {"vmeread",4,vmereadArgs};
 
-void vmereadCall(const iocshArgBuf *args)
+static void vmereadCall(const iocshArgBuf *args)
 {
     vmeread(args[0].ival, args[1].ival, args[2].ival, args[3].ival);
 }
 
-void vmesh(void)
+static void vmesh(void)
 {
     iocshRegister(&vmereadeFuncDef,vmereadCall);
 #if EPICS_VERSION==3 && EPICS_REVISION==14 && EPICS_MODIFICATION<10

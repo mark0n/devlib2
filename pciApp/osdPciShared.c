@@ -12,6 +12,8 @@
 
 #include <ellLib.h>
 #include <errlog.h>
+#include <epicsMutex.h>
+#include <epicsInterrupt.h>
 
 #include "devLibPCIImpl.h"
 
@@ -19,6 +21,9 @@
 
 #define epicsExportSharedSymbols
 #include "osdPciShared.h"
+
+/* Guards access to the devices, and dev_vend_cache lists */
+static epicsMutexId sharedGuard;
 
 /* List of osdPCIDevice */
 static ELLLIST devices;
@@ -33,6 +38,15 @@ static ELLLIST dev_vend_cache;
 
 static
 int fill_cache(epicsUInt16 dev,epicsUInt16 vend);
+
+int
+sharedDevPCIInit(void)
+{
+    sharedGuard = epicsMutexCreate();
+    if(sharedGuard)
+        return 0;
+    return S_dev_internal;
+}
 
 /*
  * Machinery for searching for PCI devices.
@@ -53,22 +67,26 @@ sharedDevPCIFindCB(
   osdPCIDevice *curdev=NULL;
   const epicsPCIID *search;
 
-  if(!searchfn)
+  if(!searchfn || !idlist)
     return S_dev_badArgument;
+
+  if(epicsMutexLock(sharedGuard)!=epicsMutexLockOK)
+    return S_dev_internal;
 
   /*
    * Ensure all entries for the requested device/vendor pairs
    * are in the 'devices' list.
    */
-  for(search=idlist; search && !!search->device; search++){
+  for(search=idlist; search->device!=DEVPCI_LAST_DEVICE; search++){
     if(search->device==DEVPCI_ANY_DEVICE ||
        search->vendor==DEVPCI_ANY_VENDOR)
     {
       errlogPrintf("devPCI: Wildcards are not supported in Device and Vendor fields\n");
-      return S_dev_badRequest;
+      err=S_dev_badRequest;
+      goto done;
     }
     if( (err=fill_cache(search->device, search->vendor)) )
-      return err;
+      goto done;
   }
 
   cur=ellFirst(&devices);
@@ -110,16 +128,19 @@ sharedDevPCIFindCB(
       case 0: /* Continue search */
         break;
       case 1: /* Abort search OK */
-        return 0;
+        err=0;
       default:/* Abort search Err */
-        return err;
+        goto done;
       }
 
     }
 
   }
 
-  return 0;
+  err=0;
+done:
+  epicsMutexUnlock(sharedGuard);
+  return err;
 }
 
 int
@@ -131,6 +152,10 @@ sharedDevPCIToLocalAddr(
 )
 {
   struct osdPCIDevice *osd=pcidev2osd(dev);
+
+  /* No locking since the base address is not changed
+   * after the osdPCIDevice is created
+   */
 
   if(!osd->base[bar])
     return S_dev_addrMapFail;
@@ -149,12 +174,22 @@ sharedDevPCIBarLen(
   struct osdPCIDevice *osd=pcidev2osd(dev);
   int b=dev->bus, d=dev->device, f=dev->function;
   UINT32 start, max, mask;
+  long iflag;
 
   if(!osd->base[bar])
     return S_dev_badSignalNumber;
 
-  if(osd->len[bar])
-    return osd->len[bar];
+  /* Disable interrupts since we are changing a device's PCI BAR
+   * register.  This is not safe to do on an active device.
+   * Disabling interrupts avoids some, but not all, of these problems
+   */
+  iflag=epicsInterruptLock();
+
+  if(osd->len[bar]) {
+    *len=osd->len[bar];
+    epicsInterruptUnlock(iflag);
+    return 0;
+  }
 
   /* Note: the following assumes the bar is 32-bit */
 
@@ -175,8 +210,10 @@ sharedDevPCIBarLen(
   pci_read_config_dword(b,d,f,PCI_BASE_ADDRESS(bar), &start);
 
   /* If the BIOS didn't set this BAR then don't mess with it */
-  if((start&mask)==0)
+  if((start&mask)==0) {
+    epicsInterruptUnlock(iflag);
     return S_dev_badRequest;
+  }
 
   pci_write_config_dword(b,d,f,PCI_BASE_ADDRESS(bar), mask);
   pci_read_config_dword(b,d,f,PCI_BASE_ADDRESS(bar), &max);
@@ -189,6 +226,7 @@ sharedDevPCIBarLen(
   osd->len[bar] = max & ~(max-1);
 
   *len=osd->len[bar];
+  epicsInterruptUnlock(iflag);
   return 0;
 }
 
@@ -215,12 +253,17 @@ int sharedDevPCIFind(epicsUInt16 dev,epicsUInt16 vend,ELLLIST* store)
 
     err=pci_find_device(vend,dev,N, &b, &d, &f);
     if(err){ /* No more */
+      if(N==0 && devPCIDebug>=1)
+        errlogPrintf("sharedDevPCIFind: found no vendor:device with %04x:%04x\n",vend,dev);
       free(next);
       break;
     }
     next->dev.bus=b;
     next->dev.device=d;
     next->dev.function=f;
+
+    if(devPCIDebug>=1)
+      errlogPrintf("sharedDevPCIFind found %d.%d.%d\n",b,d,f);
 
     pci_read_config_word(b,d,f,PCI_DEVICE_ID, &val16);
     next->dev.id.device=val16;
@@ -267,6 +310,12 @@ int sharedDevPCIFind(epicsUInt16 dev,epicsUInt16 vend,ELLLIST* store)
 
     pci_read_config_byte(b,d,f,PCI_INTERRUPT_LINE, &val8);
     next->dev.irq=val8;
+
+    if(devPCIDebug>=1)
+      errlogPrintf(" as pri %04x:%04x sub %04x:%04x cls %06x\n",
+                   next->dev.id.vendor, next->dev.id.device,
+                   next->dev.id.sub_vendor, next->dev.id.sub_device,
+                   next->dev.id.pci_class);
 
     ellInsert(store,NULL,&next->node);
   }

@@ -66,8 +66,10 @@ typedef struct {
 #define DEVPCI_ANY_CLASS 0x1000000
 #define DEVPCI_ANY_REVISION 0x100
 
+#define DEVPCI_LAST_DEVICE 0xffff0000
+
 /** @brief The last item in a list of PCI IDS */
-#define DEVPCI_END {0,0,0,0,0,0}
+#define DEVPCI_END {DEVPCI_LAST_DEVICE,0,0,0,0,0}
 
 #define DEVPCI_DEVICE_VENDOR(dev,vend) \
 { dev, vend, DEVPCI_ANY_SUBDEVICE, DEVPCI_ANY_SUBVENDOR, \
@@ -173,14 +175,33 @@ const epicsPCIDevice **found,
      unsigned int opt /* always 0 */
 );
 
+#ifdef __linux__
+#define DEVLIB_MAP_UIO1TO1 0
+#define DEVLIB_MAP_UIOCOMPACT 1
+#else
+/* UIO options have no meaning for non-Linux OSs */
+#define DEVLIB_MAP_UIO1TO1 0
+#define DEVLIB_MAP_UIOCOMPACT 0
+#endif
+
 /** @brief Get pointer to PCI BAR
  *
  * Map a PCI BAR into the local process address space.
  *
+ * The opt argument is used to modify the mapping process.
+ * Currently only two (mutually exclusive) flags are supported which are only
+ * used by the Linux UIO bus implementation to control
+ * how requested BAR #s are mapped to UIO region numbers.
+ *
+ * @li DEVLIB_MAP_UIO1TO1 (the only choice in devLib2 versions < 2.4) passes BAR
+ *     #s without modification.
+ * @li DEVLIB_MAP_UIOCOMPACT Maps the requested BAR # to the index of the appropriate
+ *     IOMEM region.  This index skips I/O Port BARs and any other non-IOMEM regions.
+ *
  @param id PCI device pointer
  @param bar BAR number
  @param[out] ppLocalAddr Pointer to start of BAR
- @param opt Modifiers.  Currently unused
+ @param opt Modifiers.  0 or bitwise OR of one or more DEVLIB_MAP_* macros
  @returns 0 on success or an EPICS error code on failure.
  */
 epicsShareFunc
@@ -198,7 +219,7 @@ devPCIToLocalAddr(
  * the given BAR.
  *
  @warning On RTEMS and vxWorks this is a invasive operation.
-          When calling it ensure that nothing access the device.
+          When calling it ensure that nothing is accessing the device.
          \b Don't \b call \b this \b on \b a \b device \b used \b by \b another \b driver.
  *
  @param id PCI device pointer
@@ -276,6 +297,8 @@ devLibPCIUse(const char* name);
 
 epicsShareFunc
 const char* devLibPCIDriverName();
+
+extern int devPCIDebug;
 
 #ifdef __cplusplus
 } /* extern "C" */
