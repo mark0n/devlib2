@@ -34,6 +34,8 @@
 # endif
 #endif
 
+int devPCIDebug = 0;
+
 static ELLLIST pciDrivers = {{NULL,NULL},0};
 
 static devLibPCI *pdevLibPCI=NULL;
@@ -133,10 +135,14 @@ const char* devLibPCIDriverName()
 static
 void devInit(void* junk)
 {
-  if(devLibPCIUse(NULL)) {
-    devPCIInit_result = S_dev_internal;
-    return;
-  }
+  epicsThreadOnce(&devPCIReg_once, &regInit, NULL);
+  epicsMutexMustLock(pciDriversLock);
+  if(!pdevLibPCI && devLibPCIUse(NULL)) {
+      epicsMutexUnlock(pciDriversLock);
+      devPCIInit_result = S_dev_internal;
+      return;
+    }
+  epicsMutexUnlock(pciDriversLock);
 
   if(!!pdevLibPCI->pDevInit)
     devPCIInit_result = (*pdevLibPCI->pDevInit)();
@@ -293,12 +299,18 @@ int devPCIDisconnectInterrupt(
                 (curdev,pFunction,parameter);
 }
 
+typedef struct {
+    int lvl;
+    int matched;
+} searchinfo;
+
 static
 int
-searchandprint(void* plvl,const epicsPCIDevice* dev)
+searchandprint(void* praw,const epicsPCIDevice* dev)
 {
-    int *lvl=plvl;
-    devPCIShowDevice(*lvl,dev);
+    searchinfo *pinfo=praw;
+    pinfo->matched++;
+    devPCIShowDevice(pinfo->lvl,dev);
     return 0;
 }
 
@@ -309,11 +321,15 @@ devPCIShow(int lvl, int vendor, int device, int exact)
         DEVPCI_DEVICE_VENDOR(device,vendor),
         DEVPCI_END
     };
+    searchinfo info;
+    info.lvl=lvl;
+    info.matched=0;
 
     if (vendor==0 && !exact) ids[0].vendor=DEVPCI_ANY_VENDOR;
     if (device==0 && !exact) ids[0].device=DEVPCI_ANY_DEVICE;
 
-    devPCIFindCB(ids,&searchandprint, &lvl, 0);
+    devPCIFindCB(ids,&searchandprint, &info, 0);
+    errlogPrintf("Matched %d devices\n", info.matched);
 }
 
 void
@@ -375,3 +391,5 @@ void devLibPCIIOCSH()
 }
 
 epicsExportRegistrar(devLibPCIIOCSH);
+
+epicsExportAddress(int,devPCIDebug);

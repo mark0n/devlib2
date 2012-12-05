@@ -43,10 +43,10 @@ int vxworksDevPCIConnectInterrupt(
   status=pciIntConnect((void*)INUM_TO_IVEC(VXPCIINTOFFSET + osd->dev.irq),
                        pFunction, (int)parameter);
 
-  if(status<0)
+  if(status)
     return S_dev_vecInstlFail;
 
-  return 1;
+  return 0;
 }
 
 static
@@ -71,18 +71,52 @@ int vxworksDevPCIDisconnectInterrupt(
 
 #endif
 
-  if(status<0)
+  if(status)
     return S_dev_intDisconnect;
 
-  return 1;
+  return 0;
 }
 
+static
+int vxworksPCIToLocalAddr(const epicsPCIDevice* dev,
+                          unsigned int bar, volatile void **loc,
+                          unsigned int o)
+{
+  int ret, space=0;
+  volatile void *pci;
+
+  ret=sharedDevPCIToLocalAddr(dev, bar, &pci, o);
+
+  if(ret)
+    return ret;
+
+#if defined(PCI_SPACE_MEMIO_PRI)
+  if(!dev->bar[bar].ioport) {
+    space = PCI_SPACE_MEMIO_PRI;
+  }
+#endif
+
+#if defined(PCI_SPACE_IO_PRI)
+  if(dev->bar[bar].ioport) {
+    space = PCI_SPACE_IO_PRI;
+  }
+#endif
+
+  if(space) {
+    if(sysBusToLocalAdrs(space, (char*)pci, (char**)loc))
+      return -1;
+  } else {
+    *loc=pci;
+  }
+
+  return 0;
+}
 
 devLibPCI pvxworksPCI = {
   "native",
-  NULL, NULL,
+  sharedDevPCIInit, NULL,
   sharedDevPCIFindCB,
-  sharedDevPCIToLocalAddr,
+  vxworksPCIToLocalAddr,
   sharedDevPCIBarLen,
   vxworksDevPCIConnectInterrupt,
   vxworksDevPCIDisconnectInterrupt

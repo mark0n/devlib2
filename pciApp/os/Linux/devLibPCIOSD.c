@@ -14,10 +14,12 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 
+#include <epicsStdio.h>
 #include <errlog.h>
 #include <epicsString.h>
 #include <epicsThread.h>
 #include <epicsMutex.h>
+#include <epicsEvent.h>
 #include <epicsInterrupt.h>
 #include <compilerDependencies.h>
 
@@ -103,7 +105,7 @@ struct osdISR {
     ELLNODE node;
 
     epicsThreadId waiter;
-    pthread_t waiter_id; /* filled by waiter after start */
+    epicsEventId done;
     enum {
         osdISRStarting=0, /* started, id not filled */
         osdISRRunning, /* id filled, normal operation */
@@ -138,7 +140,7 @@ long pagesize;
 
 #define BUSBASE "/sys/bus/pci/devices/0000:%02x:%02x.%1x/"
 
-#define UIO     "uio:uio%u/"
+#define UIONUM     "uio%u"
 
 #define fbad(FILE) ( feof(FILE) || ferror(FILE))
 
@@ -148,11 +150,22 @@ static
 char*
 vallocPrintf(const char *format, va_list args)
 {
+    va_list nargs;
     char* ret=NULL;
     int size, size2;
 
+    /* May use a va_list only *once* (on some implementations it may
+     * be a reference to something that holds internal state information
+     *
+     * Luckily, C99 provides va_copy.
+     */
+    va_copy(nargs, args);
+
     /* Take advantage of the fact that sprintf will tell us how much space to allocate */
-    size=vsnprintf("",0,format,args);
+    size=vsnprintf("",0,format,nargs);
+
+    va_end(nargs);
+
     if (size<=0) {
         errlogPrintf("vaprintf: Failed to convert format '%s'\n",format);
         goto fail;
@@ -243,12 +256,59 @@ read_sysfs_hex(int *err, const char *fileformat, ...)
     return ret;
 }
 
+/* location of UIO entries in sysfs tree
+ *
+ * circa 2.6.28
+ * in /sys/bus/pci/devices/0000:%02x:%02x.%1x/
+ * called uio:uio#
+ *
+ * circa 2.6.32
+ * in /sys/bus/pci/devices/0000:%02x:%02x.%1x/uio/
+ * called uio#
+ */
+static const
+struct locations_t {
+    const char *dir, *name;
+} locations[] = {
+{BUSBASE,        "uio:" UIONUM},
+{BUSBASE "uio/", UIONUM},
+{NULL,NULL}
+};
+
 static
-int match_uio(const struct dirent *ent)
+int match_uio(const char *pat, const struct dirent *ent)
 {
     unsigned int X;
     /* poor mans regexp... */
-    return sscanf(ent->d_name, "uio:uio%u", &X)==1;
+    return sscanf(ent->d_name, pat, &X)==1;
+}
+
+static
+int find_uio_number2(const char* dname, const char* pat)
+{
+    int ret=-1;
+    DIR *d;
+    struct dirent *ent;
+
+    d=opendir(dname);
+    if (!d)
+        return ret;
+
+    while ((ent=readdir(d))!=NULL) {
+        if (!match_uio(pat, ent))
+            continue;
+        if (sscanf(ent->d_name, pat, &ret)==1) {
+            break;
+        }
+        ret=-1;
+    }
+
+    closedir(d);
+
+    if (ret==-1)
+        errno=ENOENT;
+
+    return ret;
 }
 
 /* Each PCI device with a UIO instance attached to in should have
@@ -259,42 +319,46 @@ static
 int
 find_uio_number(const struct osdPCIDevice* osd)
 {
-    int N, ret=-1;
-    char *devdir;
-    struct dirent **namelist=NULL;
+    int ret=-1;
+    char *devdir=NULL;
+    const struct locations_t *curloc;
 
-    devdir=allocPrintf(BUSBASE, osd->dev.bus, osd->dev.device, osd->dev.function);
-    if (!devdir)
-        goto fail;
+    for(curloc=locations; curloc->dir; ++curloc)
+    {
+        free(devdir);
 
-    N=scandir(devdir, &namelist, match_uio, alphasort );
-    if (N<0) {
-        errlogPrintf("find_uio_number: Search of %s failed\n",devdir);
-        perror("scandir");
-        goto fail;
-    } else if (N==0) {
-        errlogPrintf("No UIO driver associated with %u:%u.%u\n"
-                     "Looked in %s",
-                     osd->dev.bus, osd->dev.device, osd->dev.function,
-                     devdir);
-        goto fail;
-    } else if (N>1) {
-        errlogPrintf("Warning: More the one driver associated with  %u:%u.%u\n"
-                     "Using %s/%s",
-                     osd->dev.bus, osd->dev.device, osd->dev.function,
-                     devdir, namelist[0]->d_name);
-        goto fail;
+        devdir=allocPrintf(curloc->dir, osd->dev.bus, osd->dev.device, osd->dev.function);
+        if (!devdir)
+            goto fail;
+
+        ret=find_uio_number2(devdir, curloc->name);
+        if (ret<0) {
+            if(errno==ENOENT)
+                continue;
+
+            errlogPrintf("find_uio_number: Search of %s failed\n",devdir);
+            perror("opendir");
+            goto fail;
+
+        } else
+            break;
     }
-    /* N==1 */
-    if (sscanf(namelist[0]->d_name, "uio:uio%u", &ret)!=1) {
-        errlogPrintf("find_uio_number: Someone changed the match conditions and didn't update me!\n");
-        ret=-1;
-        goto fail;
+
+    if (ret==-1) {
+        errlogPrintf("After looking:\n");
+        for(curloc=locations; curloc->dir; ++curloc)
+        {
+            devdir=allocPrintf(curloc->dir, osd->dev.bus, osd->dev.device, osd->dev.function);
+            errlogPrintf("in %s for %s\n",devdir,curloc->name);
+            free(devdir);
+        }
+        devdir=NULL;
+        errlogPrintf("Failed to find device %u:%u.%u\n",
+                     osd->dev.bus, osd->dev.device, osd->dev.function);
     }
 
     /* ret set by sscanf */
 fail:
-    free(namelist);
     free(devdir);
     return ret;
 }
@@ -411,6 +475,16 @@ int linuxDevPCIInit(void)
                          "         This may cause some searches to fail\n",
                          osd->dev.bus, osd->dev.device, osd->dev.function);
             fail=0;
+        }
+
+        if(devPCIDebug>=1) {
+            errlogPrintf("linuxDevPCIInit found %d.%d.%d\n",
+                         osd->dev.bus, osd->dev.device, osd->dev.function);
+            errlogPrintf(" as pri %04x:%04x sub %04x:%04x cls %06x\n",
+                         osd->dev.id.vendor, osd->dev.id.device,
+                         osd->dev.id.sub_vendor, osd->dev.id.sub_device,
+                         osd->dev.id.pci_class);
+            errlogFlush();
         }
 
         /* Read BAR info */
@@ -539,17 +613,21 @@ linuxDevPCIFindCB(
   osdPCIDevice *curdev=NULL;
   const epicsPCIID *search;
 
-  if(!searchfn)
+  if(!searchfn || !idlist)
     return S_dev_badArgument;
 
-  epicsMutexMustLock(pciLock);
+  if(epicsMutexLock(pciLock)!=epicsMutexLockOK)
+      return S_dev_internal;
 
   cur=ellFirst(&devices);
   for(; cur; cur=ellNext(cur)){
       curdev=CONTAINER(cur,osdPCIDevice,node);
-      epicsMutexMustLock(curdev->devLock);
+      if(epicsMutexLock(curdev->devLock)!=epicsMutexLockOK) {
+          ret=S_dev_internal;
+          goto done;
+      }
 
-      for(search=idlist; search && !!search->device; search++){
+      for(search=idlist; search->device!=DEVPCI_LAST_DEVICE; search++){
 
           if(search->device!=DEVPCI_ANY_DEVICE &&
              search->device!=curdev->dev.id.device)
@@ -612,9 +690,11 @@ linuxDevPCIToLocalAddr(
   unsigned int opt
 )
 {
+    int mapno,i;
     osdPCIDevice *osd=CONTAINER((epicsPCIDevice*)dev,osdPCIDevice,dev);
 
-    epicsMutexMustLock(osd->devLock);
+    if(epicsMutexLock(osd->devLock)!=epicsMutexLockOK)
+        return S_dev_internal;
 
     if (open_uio(osd)) {
         epicsMutexUnlock(osd->devLock);
@@ -622,9 +702,29 @@ linuxDevPCIToLocalAddr(
     }
 
     if (!osd->base[bar]) {
+
+        if ( osd->dev.bar[bar].ioport ) {
+            errlogPrintf("Failed to MMAP BAR %u of %u:%u.%u -- mapping of IOPORTS is not possible\n", bar,
+                         osd->dev.bus, osd->dev.device, osd->dev.function);
+            return S_dev_addrMapFail;
+        }
+
+        if (opt&DEVLIB_MAP_UIOCOMPACT) {
+            /* mmap requires the number of *mappings* times pagesize;
+             * valid mappings are only PCI memory regions.
+             * Let's count them here
+             */
+            for ( i=0, mapno=bar; i<=bar; i++ ) {
+                if ( osd->dev.bar[i].ioport ) {
+                    mapno--;
+                }
+            }
+        } else
+            mapno=bar;
+
         osd->base[bar] = mmap(NULL, osd->offset[bar]+osd->len[bar],
                               PROT_READ|PROT_WRITE, MAP_SHARED,
-                              osd->fd, bar*pagesize);
+                              osd->fd, mapno*pagesize);
         if (osd->base[bar]==MAP_FAILED) {
             perror("Failed to map BAR");
             errlogPrintf("Failed to MMAP BAR %u of %u:%u.%u\n", bar,
@@ -650,7 +750,8 @@ linuxDevPCIBarLen(
 {
     osdPCIDevice *osd=CONTAINER(dev,osdPCIDevice,dev);
 
-    epicsMutexMustLock(osd->devLock);
+    if(epicsMutexLock(osd->devLock)!=epicsMutexLockOK)
+        return -1;
     *len=osd->len[bar];
     epicsMutexUnlock(osd->devLock);
     return 0;
@@ -675,45 +776,49 @@ int linuxDevPCIConnectInterrupt(
     isr->param=parameter;
     isr->osd=osd;
     isr->waiter_status=osdISRStarting;
+    isr->done=epicsEventCreate(epicsEventEmpty);
 
-    epicsMutexMustLock(osd->devLock);
+    if(!isr->done || epicsMutexLock(osd->devLock)!=epicsMutexLockOK) {
+        free(isr);
+        return S_dev_internal;
+    }
+
     for(cur=ellFirst(&osd->isrs); cur; cur=ellNext(cur))
     {
         other=CONTAINER(cur,osdISR,node);
         if (other->fptr==isr->fptr && other->param==isr->param) {
             epicsMutexUnlock(osd->devLock);
             errlogPrintf("ISR already registered\n");
-            free(isr);
-            return S_dev_vecInstlFail;
+            goto error;
         }
     }
-    ellAdd(&osd->isrs,&isr->node);
-    epicsMutexUnlock(osd->devLock);
 
-    snprintf(name,NELEMENTS(name),"%02xPCIISR",dev->irq);
+    epicsSnprintf(name,NELEMENTS(name),"%02xPCIISR",dev->irq);
     name[NELEMENTS(name)-1]='\0';
 
     /* Ensure that "IRQ" thread has higher priority
      * then all other EPICS threads.
      */
-    isr->waiter = epicsThreadMustCreate(name,
-                                        epicsThreadPriorityMax-1,
-                                        epicsThreadStackMedium,
-                                        isrThread,
-                                        isr
-                                        );
+    isr->waiter = epicsThreadCreate(name,
+                                    epicsThreadPriorityMax-1,
+                                    epicsThreadGetStackSize(epicsThreadStackMedium),
+                                    isrThread,
+                                    isr
+                                    );
     if (!isr->waiter) {
-        errlogPrintf("Failed to create ISR thread\n");
-
-        epicsMutexMustLock(osd->devLock);
-        ellDelete(&osd->isrs,&isr->node);
         epicsMutexUnlock(osd->devLock);
-
-        free(isr);
-        return S_dev_vecInstlFail;
+        errlogPrintf("Failed to create ISR thread %s\n", name);
+        goto error;
     }
 
+    ellAdd(&osd->isrs,&isr->node);
+    epicsMutexUnlock(osd->devLock);
+
     return 0;
+error:
+    epicsEventDestroy(isr->done);
+    free(isr);
+    return S_dev_vecInstlFail;
 }
 
 static
@@ -724,19 +829,14 @@ void isrThread(void* arg)
     int interrupted=0, ret;
     epicsInt32 event, next=0;
     const char* name;
-    sigset_t allow;
     int isrflag;
-
-    sigemptyset(&allow);
-    sigaddset(&allow, SIGHUP);
 
     name=epicsThreadGetNameSelf();
 
-    if (pthread_sigmask(SIG_UNBLOCK, &allow, NULL))
-        errlogPrintf("Failed to set mask for thread %s,\n"
-                     "ISR disconnect may not work correctly", name);
-
-    epicsMutexMustLock(osd->devLock);
+    if(epicsMutexLock(osd->devLock)!=epicsMutexLockOK) {
+        errlogMessage("Can't lock ISR thread");
+        return;
+    }
 
     if (isr->waiter_status!=osdISRStarting) {
         isr->waiter_status = osdISRDone;
@@ -744,7 +844,6 @@ void isrThread(void* arg)
         return;
     }
 
-    isr->waiter_id = pthread_self();
     isr->waiter_status = osdISRRunning;
 
     while (isr->waiter_status==osdISRRunning) {
@@ -780,12 +879,17 @@ void isrThread(void* arg)
         }
         next=event+1;
 
-        epicsMutexMustLock(osd->devLock);
+        if(epicsMutexLock(osd->devLock)!=epicsMutexLockOK) {
+            errlogMessage("Failed to relock ISR thread\n");
+            isr->waiter_status = osdISRDone;
+            return;
+        }
     }
 
     isr->waiter_status = osdISRDone;
 
     epicsMutexUnlock(osd->devLock);
+    epicsEventSignal(isr->done);
 }
 
 /* Caller must take devLock */
@@ -795,16 +899,13 @@ stopIsrThread(osdISR *isr)
 {
     if (isr->waiter_status==osdISRDone)
         return;
-    else if (isr->waiter_status==osdISRRunning) {
-        pthread_kill(isr->waiter_id, SIGHUP);
-    }
 
     isr->waiter_status = osdISRStopping;
 
     while (isr->waiter_status!=osdISRDone) {
         epicsMutexUnlock(isr->osd->devLock);
 
-        epicsThreadSleep(0.1);
+        epicsEventWait(isr->done);
 
         epicsMutexMustLock(isr->osd->devLock);
     }
@@ -822,7 +923,9 @@ int linuxDevPCIDisconnectInterrupt(
     osdISR *isr;
     osdPCIDevice *osd=CONTAINER((epicsPCIDevice*)dev,osdPCIDevice,dev);
 
-    epicsMutexMustLock(osd->devLock);
+    if(epicsMutexLock(osd->devLock)!=epicsMutexLockOK)
+        return S_dev_internal;
+
     for(cur=ellFirst(&osd->isrs); cur; cur=ellNext(cur))
     {
         isr=CONTAINER(cur,osdISR,node);
@@ -832,6 +935,7 @@ int linuxDevPCIDisconnectInterrupt(
             stopIsrThread(isr);
 
             ellDelete(&osd->isrs,cur);
+            epicsEventDestroy(isr->done);
             free(isr);
 
             ret=0;
