@@ -42,8 +42,8 @@ Description: VME and PCI bus access library
 
 Package: rtems-devlib2-mvme2100
 Architecture: all
-Depends: ${rtems:Depends}, epics-devlib2-dev (= ${binary:Version}),
-         ${misc:Depends},
+Depends: ${rtems:Depends}, epics-devlib2-dev (>= ${binary:Version}),
+         epics-devlib2-dev (<< ${binary:Version}.1~), ${misc:Depends},
 Description: VME and PCI bus access library
  devLib2 is an extension to the EPICS OS independent VME bus access
  library (devLib v1) found in the 3.14.x series.
@@ -54,8 +54,8 @@ Description: VME and PCI bus access library
 
 Package: rtems-devlib2-mvme2307
 Architecture: all
-Depends: ${rtems:Depends}, epics-devlib2-dev (= ${binary:Version}),
-         ${misc:Depends},
+Depends: ${rtems:Depends}, epics-devlib2-dev (>= ${binary:Version}),
+         epics-devlib2-dev (<< ${binary:Version}.1~), ${misc:Depends},
 Description: VME and PCI bus access library
  devLib2 is an extension to the EPICS OS independent VME bus access
  library (devLib v1) found in the 3.14.x series.
@@ -66,8 +66,8 @@ Description: VME and PCI bus access library
 
 Package: rtems-devlib2-mvme3100
 Architecture: all
-Depends: ${rtems:Depends}, epics-devlib2-dev (= ${binary:Version}),
-         ${misc:Depends},
+Depends: ${rtems:Depends}, epics-devlib2-dev (>= ${binary:Version}),
+         epics-devlib2-dev (<< ${binary:Version}.1~), ${misc:Depends},
 Description: VME and PCI bus access library
  devLib2 is an extension to the EPICS OS independent VME bus access
  library (devLib v1) found in the 3.14.x series.
@@ -78,8 +78,8 @@ Description: VME and PCI bus access library
 
 Package: rtems-devlib2-mvme5500
 Architecture: all
-Depends: ${rtems:Depends}, epics-devlib2-dev (= ${binary:Version}),
-         ${misc:Depends},
+Depends: ${rtems:Depends}, epics-devlib2-dev (>= ${binary:Version}),
+         epics-devlib2-dev (<< ${binary:Version}.1~), ${misc:Depends},
 Description: VME and PCI bus access library
  devLib2 is an extension to the EPICS OS independent VME bus access
  library (devLib v1) found in the 3.14.x series.
