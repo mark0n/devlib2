@@ -168,7 +168,7 @@ int vxworksDevPCIConnectInterrupt(
     if(status)
         return S_dev_vecInstlFail;
 
-    return 0;
+    return intEnable(VXPCIINTOFFSET+dev->irq);
 }
 
 /* Disconnect ISR from its PCI interrupt vector. */
@@ -233,13 +233,22 @@ int vxworksPCIToLocalAddr(const epicsPCIDevice* dev,
 #endif
 
   if(space) {
-      if(CallSysBusToLocalAdrs(space, (char*)pci, (char**)loc))
-      return -1;
-  } else {
-    *loc=pci;
+      ret = CallSysBusToLocalAdrs(space, (char*)pci, (char**)loc); 
+      if(ret == 0) return 0;
+      /* sysBusToLocalAdrs may be needless/unsupported for PCI. Fall through */
   }
 
+  *loc=pci;
   return 0;
+}
+
+static int
+vxworksDevPCISwitchInterrupt(const epicsPCIDevice *dev, int level)
+{
+    if (level)
+        return intEnable(VXPCIINTOFFSET+dev->irq);
+    else
+        return intDisable(VXPCIINTOFFSET+dev->irq);
 }
 
 devLibPCI pvxworksPCI = {
@@ -249,7 +258,9 @@ devLibPCI pvxworksPCI = {
   vxworksPCIToLocalAddr,
   sharedDevPCIBarLen,
   vxworksDevPCIConnectInterrupt,
-  vxworksDevPCIDisconnectInterrupt
+  vxworksDevPCIDisconnectInterrupt,
+  sharedDevPCIConfigAccess,
+  vxworksDevPCISwitchInterrupt
 };
 #include <epicsExport.h>
 
