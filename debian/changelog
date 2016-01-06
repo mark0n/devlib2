@@ -1,3 +1,9 @@
+devlib2 (2.6-2) unstable; urgency=medium
+
+  * Add missing "extern C"
+
+ -- Martin Konrad <konrad@frib.msu.edu>  Tue, 05 Jan 2016 17:00:10 -0800
+
 devlib2 (2.6-1) unstable; urgency=medium
 
   * Imported Upstream version 2.6
