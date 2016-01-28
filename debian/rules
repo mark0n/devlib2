@@ -2,8 +2,14 @@
 
 export DH_VERBOSE=1
 
-binary binary-arch binary-indep build install clean:
+%:
 	dh $@ --with epics -Sepicsmake
-install: build
-binary-arch binary-indep: install
-binary: binary-arch binary-indep
+
+override_dh_auto_clean:
+	echo "EPICS_BASE=/usr/lib/epics" > configure/RELEASE.local
+	dh_auto_clean
+	rm -f configure/RELEASE.local
+
+override_dh_auto_build:
+	echo "EPICS_BASE=/usr/lib/epics" > configure/RELEASE.local
+	dh_auto_build
