@@ -283,31 +283,26 @@ struct locations_t {
 };
 
 static
-int match_uio(const char *pat, const struct dirent *ent)
-{
-    unsigned int X;
-    /* poor mans regexp... */
-    return sscanf(ent->d_name, pat, &X)==1;
-}
-
-static
 int find_uio_number2(const char* dname, const char* pat)
 {
     int ret=-1;
     DIR *d;
     struct dirent *ent;
 
+    if(devPCIDebug>2)
+        errlogPrintf("Looking for UIO dir in %s with %s\n", dname, pat);
+
     d=opendir(dname);
     if (!d)
         return ret;
 
     while ((ent=readdir(d))!=NULL) {
-        if (!match_uio(pat, ent))
-            continue;
-        if (sscanf(ent->d_name, pat, &ret)==1) {
+        int num, sts = sscanf(ent->d_name, pat, &num);
+        if(devPCIDebug>2) errlogPrintf(" Check %s gives %d %d\n", ent->d_name, sts, num);
+        if (sts==1) {
+            ret = num;
             break;
         }
-        ret=-1;
     }
 
     closedir(d);
@@ -338,12 +333,12 @@ find_uio_number(const struct osdPCIDevice* osd)
         ret = find_uio_number2(devdir, curloc->name);
         free (devdir);
 
-        if (ret == 0)
-            return 0;
+        if (ret != -1)
+            return ret;
     }
     errlogPrintf("Failed to open uio device for PCI device %04x:%02x:%02x.%x: %s\n",
                  osd->dev.domain, osd->dev.bus, osd->dev.device, osd->dev.function, strerror(errno));
-    return ret;
+    return -1;
 }
 
 static
@@ -643,38 +638,52 @@ linuxDevPCIFindCB(
 
     cur=ellFirst(&devices);
     for(; cur; cur=ellNext(cur)){
+        unsigned i;
         curdev=CONTAINER(cur,osdPCIDevice,node);
         epicsMutexMustLock(curdev->devLock);
 
-        for(search=idlist; search->device!=DEVPCI_LAST_DEVICE; search++){
+        if(devPCIDebug>1)
+            printf("Consider %d:%d.%d\n", curdev->dev.bus, curdev->dev.device, curdev->dev.function);
+
+        for(search=idlist, i=0; search->device!=DEVPCI_LAST_DEVICE; search++, i++){
 
             if(search->device!=DEVPCI_ANY_DEVICE &&
-               search->device!=curdev->dev.id.device)
+               search->device!=curdev->dev.id.device) {
+                if(devPCIDebug>1) printf(" %u mismatch device %x %x\n", i,
+                                         (unsigned)search->device, (unsigned)curdev->dev.id.device);
                 continue;
-            else
-                if(search->vendor!=DEVPCI_ANY_DEVICE &&
-                   search->vendor!=curdev->dev.id.vendor)
+            } else
+                if(search->vendor!=DEVPCI_ANY_VENDOR &&
+                   search->vendor!=curdev->dev.id.vendor) {
+                    if(devPCIDebug>1) printf(" %u mismatch vendor\n", i);
                     continue;
-            else
+            } else
                 if( search->sub_device!=DEVPCI_ANY_SUBDEVICE &&
                     search->sub_device!=curdev->dev.id.sub_device
-                    )
+                    ) {
+                    if(devPCIDebug>1) printf(" %u mismatch subdevice\n", i);
                     continue;
-            else
+            } else
                 if( search->sub_vendor!=DEVPCI_ANY_SUBVENDOR &&
                     search->sub_vendor!=curdev->dev.id.sub_vendor
-                    )
+                    ) {
+                    if(devPCIDebug>1) printf(" %u mismatch subvendor\n", i);
                     continue;
-            else
+            } else
                 if( search->pci_class!=DEVPCI_ANY_CLASS &&
                     search->pci_class!=curdev->dev.id.pci_class
-                    )
+                    ) {
+                    if(devPCIDebug>1) printf(" %u mismatch class\n", i);
                     continue;
-            else
+            } else
                 if( search->revision!=DEVPCI_ANY_REVISION &&
                     search->revision!=curdev->dev.id.revision
-                    )
+                    ) {
+                    if(devPCIDebug>1) printf(" %u mismatch revision\n", i);
                     continue;
+            }
+            if(devPCIDebug>1)
+                printf(" %u Match\n", i);
 
             /* Match found */
 
