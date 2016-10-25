@@ -17,6 +17,6 @@ VCS sources
 git clone https://github.com/epics-modules/devlib2.git
 ```
 
-This is file is generated from git revision edceda7bf90fa7de9108c01a2dc7185806fe4575
+This is file is generated from git revision aaf8baff70421f0549ee86f070c26834668f2144
 
 <a href="https://travis-ci.org/epics-modules/devlib2"><img src="https://travis-ci.org/epics-modules/devlib2.svg">CI Build Status</img></a>
