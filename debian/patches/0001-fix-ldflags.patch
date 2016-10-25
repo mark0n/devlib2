@@ -1,12 +1,12 @@
 From: Michael Davidsaver <mdavidsaver@bnl.gov>
 Date: Sat, 4 Jun 2011 18:41:49 -0400
-Subject: [PATCH] fix ldflags
+Subject: fix ldflags
 
 Don't want -Werror in production build
 Add --as-needed
 ---
- configure/CONFIG_SITE |    2 ++
- 1 files changed, 2 insertions(+), 0 deletions(-)
+ configure/CONFIG_SITE | 2 ++
+ 1 file changed, 2 insertions(+)
 
 diff --git a/configure/CONFIG_SITE b/configure/CONFIG_SITE
 index 83a7128..aecd695 100644
@@ -18,4 +18,3 @@ index 83a7128..aecd695 100644
  #INSTALL_LOCATION=<fullpathname>
 +
 +USR_LDFLAGS += -Wl,--as-needed
--- 

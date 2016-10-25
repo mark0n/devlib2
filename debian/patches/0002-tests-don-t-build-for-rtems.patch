@@ -1,0 +1,28 @@
+From: Michael Davidsaver <mdavidsaver@gmail.com>
+Date: Tue, 25 Oct 2016 18:11:09 -0400
+Subject: tests don't build for rtems
+
+---
+ testApp/Makefile | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/testApp/Makefile b/testApp/Makefile
+index b6bbbca..23ce2eb 100644
+--- a/testApp/Makefile
++++ b/testApp/Makefile
+@@ -10,13 +10,13 @@ include $(TOP)/configure/CONFIG
+ 
+ PROD_LIBS += Com
+ 
+-TESTPROD_IOC += pcitest
++TESTPROD_HOST += pcitest
+ TESTS += pcitest
+ 
+ pcitest_SRCS += pcitest.c
+ pcitest_LIBS += epicspci
+ 
+-TESTPROD_IOC += epicsMMIOTest
++TESTPROD_HOST += epicsMMIOTest
+ TESTS += epicsMMIOTest
+ 
+ epicsMMIOTest_SRCS += epicsMMIOTest.c
