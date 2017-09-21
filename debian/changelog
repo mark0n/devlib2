@@ -1,3 +1,11 @@
+devlib2 (2.9-1) unstable; urgency=medium
+
+  * New upstream version 2.9
+  * Bump up version to 2.9
+  * Update patches for v2.9
+
+ -- Martin Konrad <konrad@frib.msu.edu>  Thu, 21 Sep 2017 14:33:41 -0400
+
 devlib2 (2.8-1) unstable; urgency=medium
 
   * New upstream version
