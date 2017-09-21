@@ -219,7 +219,7 @@ static
 unsigned long
 vread_sysfs(int *err, const char *fileformat, va_list args)
 {
-    unsigned long ret=0;
+    long ret=0;
     int size;
     char *scratch=NULL;
     FILE *fd=NULL;
@@ -323,12 +323,12 @@ static
 int
 find_uio_number(const struct osdPCIDevice* osd)
 {
-    int ret=-1;
-    char *devdir=NULL;
     const struct locations_t *curloc;
 
     for(curloc=locations; curloc->dir; ++curloc)
     {
+        int ret=-1;
+        char *devdir=NULL;
         devdir=allocPrintf(curloc->dir, osd->dev.domain, osd->dev.bus, osd->dev.device, osd->dev.function);
         if (!devdir)
             break;
@@ -371,12 +371,12 @@ fail:
 }
 
 static int
-open_res(struct osdPCIDevice *osd, int bar)
+open_res(struct osdPCIDevice *osd, unsigned int bar)
 {
     int   ret  = 1;
     char *fname=NULL;
 
-    if ( bar < 0 || bar >= PCIBARCOUNT )
+    if ( bar >= PCIBARCOUNT )
         return ret;
 
     if ( osd->rfd[bar] >= 0 )
@@ -399,7 +399,7 @@ static
 void
 close_uio(struct osdPCIDevice* osd)
 {
-    int i;
+    unsigned int i;
 
     for(i=0; i<PCIBARCOUNT; i++) {
         if (!osd->base[i]) continue;
@@ -427,7 +427,6 @@ int linuxDevPCIInit(void)
 
     DIR* sysfsPci_dir=NULL;
     struct dirent* dir;
-    int i;
     osdPCIDevice *osd=NULL;
     pciLock = epicsMutexMustCreate();
     int host_is_first = 0;
@@ -451,6 +450,7 @@ int linuxDevPCIInit(void)
         int match;
         unsigned long long int start,stop,flags;
         char dname[80];
+        unsigned int i;
 
     	if (!dir->d_name || dir->d_name[0]=='.') continue; /* Skip invalid entries */
 
@@ -596,14 +596,14 @@ int linuxDevPCIInit(void)
                 if(fscanf(fp, "%x:%x:%x", &dom, &B, &D)==3) {
                     ELLNODE *cur;
                     if(devPCIDebug>2)
-                        fprintf(stderr, "found slot %s with %04u:%02u:%02u.*\n", dir->d_name, dom, B, D);
+                        fprintf(stderr, "found slot %s with %04x:%02x:%02x.*\n", dir->d_name, dom, B, D);
 
                     for(cur=ellFirst(&devices); cur; cur=ellNext(cur)) {
                         osdPCIDevice *osd = CONTAINER(cur, osdPCIDevice, node);
                         if(osd->dev.domain!=dom || osd->dev.bus!=B || osd->dev.device!=D)
                             continue;
                         if(osd->dev.slot==DEVPCI_NO_SLOT) {
-                            osd->dev.slot = strdup(dir->d_name); // return NULL would mean slot remains unlabeled
+                            osd->dev.slot = strdup(dir->d_name); /* return NULL would mean slot remains unlabeled */
                         } else {
                             fprintf(stderr, "Duplicate slot address for %s\n", dir->d_name);
                         }
@@ -675,7 +675,7 @@ linuxDevPCIFindCB(
      const epicsPCIID *idlist,
      devPCISearchFn searchfn,
      void *arg,
-     unsigned int opt /* always 0 */
+     unsigned int opt
 )
 {
     int err=0, ret=0;
@@ -683,6 +683,7 @@ linuxDevPCIFindCB(
     osdPCIDevice *curdev=NULL;
     const epicsPCIID *search;
 
+    (void) opt;
     if(!searchfn || !idlist)
         return S_dev_badArgument;
 
@@ -695,7 +696,7 @@ linuxDevPCIFindCB(
         epicsMutexMustLock(curdev->devLock);
 
         if(devPCIDebug>1)
-            printf("Consider %d:%d.%d\n", curdev->dev.bus, curdev->dev.device, curdev->dev.function);
+            printf("Consider %x:%x.%x\n", curdev->dev.bus, curdev->dev.device, curdev->dev.function);
 
         for(search=idlist, i=0; search->device!=DEVPCI_LAST_DEVICE; search++, i++){
 
@@ -707,31 +708,36 @@ linuxDevPCIFindCB(
             } else
                 if(search->vendor!=DEVPCI_ANY_VENDOR &&
                    search->vendor!=curdev->dev.id.vendor) {
-                    if(devPCIDebug>1) printf(" %u mismatch vendor\n", i);
+                    if(devPCIDebug>1) printf(" %u mismatch vendor %x %x\n", i,
+                                             (unsigned)search->vendor, (unsigned)curdev->dev.id.vendor);
                     continue;
             } else
                 if( search->sub_device!=DEVPCI_ANY_SUBDEVICE &&
                     search->sub_device!=curdev->dev.id.sub_device
                     ) {
-                    if(devPCIDebug>1) printf(" %u mismatch subdevice\n", i);
+                    if(devPCIDebug>1) printf(" %u mismatch subdevice %x %x\n", i,
+                                             (unsigned)search->sub_device, (unsigned)curdev->dev.id.sub_device);
                     continue;
             } else
                 if( search->sub_vendor!=DEVPCI_ANY_SUBVENDOR &&
                     search->sub_vendor!=curdev->dev.id.sub_vendor
                     ) {
-                    if(devPCIDebug>1) printf(" %u mismatch subvendor\n", i);
+                    if(devPCIDebug>1) printf(" %u mismatch subvendor %x %x\n", i,
+                                             (unsigned)search->sub_vendor, (unsigned)curdev->dev.id.sub_vendor);
                     continue;
             } else
                 if( search->pci_class!=DEVPCI_ANY_CLASS &&
                     search->pci_class!=curdev->dev.id.pci_class
                     ) {
-                    if(devPCIDebug>1) printf(" %u mismatch class\n", i);
+                    if(devPCIDebug>1) printf(" %u mismatch class %x %x\n", i,
+                                             (unsigned)search->pci_class, (unsigned)curdev->dev.id.pci_class);
                     continue;
             } else
                 if( search->revision!=DEVPCI_ANY_REVISION &&
                     search->revision!=curdev->dev.id.revision
                     ) {
-                    if(devPCIDebug>1) printf(" %u mismatch revision\n", i);
+                    if(devPCIDebug>1) printf(" %u mismatch revision %x %x\n", i,
+                                             search->revision, curdev->dev.id.revision);
                     continue;
             }
             if(devPCIDebug>1)
@@ -771,21 +777,20 @@ linuxDevPCIToLocalAddr(
   unsigned int opt
 )
 {
-    int mapno,i;
-    int mapfd;
-
     osdPCIDevice *osd=CONTAINER((epicsPCIDevice*)dev,osdPCIDevice,dev);
 
     epicsMutexMustLock(osd->devLock);
 
     if (open_res(osd, bar) && open_uio(osd)) {
-        fprintf(stderr, "Can neither open resource file nor uio file of PCI device %04x:%02x:%02x.%x BAR %i\n",
+        fprintf(stderr, "Can neither open resource file nor uio file of PCI device %04x:%02x:%02x.%x BAR %u\n",
             osd->dev.domain, osd->dev.bus, osd->dev.device, osd->dev.function, bar);
         epicsMutexUnlock(osd->devLock);
         return S_dev_addrMapFail;
     }
 
     if (!osd->base[bar]) {
+        int mapno;
+        int mapfd;
 
         if ( osd->dev.bar[bar].ioport ) {
             fprintf(stderr, "Failed to MMAP BAR %u of PCI device %04x:%02x:%02x.%x -- mapping of IOPORTS is not possible\n", bar,
@@ -805,6 +810,7 @@ linuxDevPCIToLocalAddr(
                  * valid mappings are only PCI memory regions.
                  * Let's count them here
                  */
+                unsigned int i;
                 for ( i=0; i<=bar; i++ ) {
                     if ( osd->dev.bar[i].ioport ) {
                         mapno--;
@@ -867,6 +873,7 @@ int linuxDevPCIConnectInterrupt(
     osdISR *other, *isr=calloc(1,sizeof(osdISR));
     int     ret = S_dev_vecInstlFail;
 
+    (void) opt;
     if (!isr) return S_dev_noMemory;
 
     isr->fptr=pFunction;
@@ -926,7 +933,7 @@ void isrThread(void* arg)
 {
     osdISR *isr=arg;
     osdPCIDevice *osd=isr->osd;
-    int interrupted=0, ret;
+    int interrupted=0;
     epicsInt32 event, next=0;
     const char* name;
     int isrflag;
@@ -944,6 +951,7 @@ void isrThread(void* arg)
     isr->waiter_status = osdISRRunning;
 
     while (isr->waiter_status==osdISRRunning) {
+        int ret;
         epicsMutexUnlock(osd->devLock);
 
         /* The interrupted flag lets us check
@@ -1090,7 +1098,7 @@ linuxDevPCIConfigAccess(const epicsPCIDevice *dev, unsigned offset, void *pArg, 
         st = pread( osd->cfd, pArg, CFG_ACC_WIDTH(mode), offset );
     }
 
-    if ( CFG_ACC_WIDTH(mode) != st ) {
+    if ( (ssize_t)CFG_ACC_WIDTH(mode) != st ) {
         if ( st < 0 )
             fprintf(stderr, "devLibPCIOSD: Unable to %s %u bytes %s configuration space: %s\n",
                          CFG_ACC_WRITE(mode) ? "write" : "read",
@@ -1129,15 +1137,16 @@ linuxDevPCISwitchInterrupt(const epicsPCIDevice *dev, int level)
 }
 
 devLibPCI plinuxPCI = {
-  "native",
-  linuxDevPCIInit, linuxDevFinal,
-  linuxDevPCIFindCB,
-  linuxDevPCIToLocalAddr,
-  linuxDevPCIBarLen,
-  linuxDevPCIConnectInterrupt,
-  linuxDevPCIDisconnectInterrupt,
-  linuxDevPCIConfigAccess,
-  linuxDevPCISwitchInterrupt
+  .name = "native",
+  .pDevInit = linuxDevPCIInit,
+  .pDevFinal = linuxDevFinal,
+  .pDevPCIFind = linuxDevPCIFindCB,
+  .pDevPCIToLocalAddr = linuxDevPCIToLocalAddr,
+  .pDevPCIBarLen = linuxDevPCIBarLen,
+  .pDevPCIConnectInterrupt = linuxDevPCIConnectInterrupt,
+  .pDevPCIDisconnectInterrupt = linuxDevPCIDisconnectInterrupt,
+  .pDevPCIConfigAccess = linuxDevPCIConfigAccess,
+  .pDevPCISwitchInterrupt = linuxDevPCISwitchInterrupt,
 };
 #include <epicsExport.h>
 

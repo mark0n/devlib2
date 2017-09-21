@@ -24,7 +24,7 @@ static volatile void *diagbase;
 static epicsUInt32 diaglen;
 
 struct bdf {
-    int b,d,f;
+    unsigned int b,d,f;
     const epicsPCIDevice *dev;
 };
 
@@ -52,7 +52,7 @@ void pcidiagset(int b, int d, int f, int bar, int vendor, int device, int exact)
     diagdev = NULL;
     diaglen = 0;
 
-    printf("Looking for %u:%u.%u\n", b, d, f);
+    printf("Looking for %x:%x.%x\n", b, d, f);
 
     if(vendor==0 && !exact)
         ids[0].vendor=DEVPCI_ANY_VENDOR;
@@ -74,7 +74,7 @@ void pcidiagset(int b, int d, int f, int bar, int vendor, int device, int exact)
         return;
     }
 
-    printf("Mapping %u:%u.%u\n", loc.dev->bus, loc.dev->device, loc.dev->function);
+    printf("Mapping %x:%x.%x\n", loc.dev->bus, loc.dev->device, loc.dev->function);
 
 #if defined(linux)
     if(devPCIBarLen(loc.dev, bar, &len)) {
@@ -90,15 +90,15 @@ void pcidiagset(int b, int d, int f, int bar, int vendor, int device, int exact)
     diagdev = loc.dev;
     diaglen=len;
 
-#if defined(linux)
-    printf("BAR %u from 0x%08lx for %u bytes\n",bar, (unsigned long)diagbase, diaglen);
+#if defined(__linux__)
+    printf("BAR %d from %p for %u bytes\n",bar, (void*)diagbase, (unsigned)diaglen);
 #else
-    printf("BAR %u from 0x%08lx\n",bar, (unsigned long)diagbase);
+    printf("BAR %d from %p\n",bar, (void*)diagbase);
 #endif
 
 }
 
-static int check_args(int dmod, int offset, int count)
+static int check_args(int dmod, unsigned int offset, unsigned int count)
 {
     switch(dmod){
     case 8:
@@ -109,13 +109,18 @@ static int check_args(int dmod, int offset, int count)
       printf("Invalid data width %d\n",dmod);
       return 1;
     }
+
+    if(offset>=diaglen || offset+count>diaglen) {
+        printf("Invalid offset and/or count\n");
+        return 1;
+    }
     return 0;
 }
 
 void pciwrite(int dmod, int offset, int value)
 {
   epicsUInt32 tval = value;
-  volatile char* dptr = diagbase + offset;
+  volatile char* dptr = offset + (volatile char*)diagbase;
 
   if(!diagbase) {
       printf("Run pcidiagset first\n");
@@ -152,7 +157,7 @@ void pciread(int dmod, int offset, int count)
   count/=dbytes;
   if(count==0) count=1;
 
-  for(i=0, dptr=diagbase+offset; i<count; i++, dptr+=dbytes) {
+  for(i=0, dptr=offset+(volatile char*)diagbase; i<count; i++, dptr+=dbytes) {
       if ((i*dbytes)%16==0)
           printf("\n0x%08x ",i*dbytes);
       else if ((i*dbytes)%4==0)

@@ -1,0 +1,84 @@
+
+record(bo, "$(P)$(CH)ENA_CMD") {
+  field(ZNAM, "Disabled")
+  field(ONAM, "Enabled")
+  field(OUT, "$(P)$(CH)ENA_ PP")
+  field(PINI, "YES")
+}
+
+record(longout, "$(P)$(CH)ENA_") {
+  field(DTYP, "Explore PCI Write32")
+  field(OUT , "@$(DEV) 0 100 $(OFFSET)")
+}
+
+record(bi, "$(P)$(CH)ENA_RSTS") {
+  field(DISV, "-1")
+  field(SDIS, "$(P)FAIL_ NPP MSI")
+  field(DTYP, "Explore PCI Read32")
+  field(INP , "@$(DEV) 0 110 $(OFFSET)")
+  field(MASK, "1")
+  field(ZNAM, "Disabled")
+  field(ONAM, "Enabled")  
+  field(SCAN, ".1 second")
+}
+
+record(ai, "$(P)$(CH)I_RD") {
+  field(DISV, "-1")
+  field(SDIS, "$(P)FAIL_ NPP MSI")
+  field(DTYP, "Explore PCI Read32")
+  field(INP , "@$(DEV) 0 10c $(OFFSET)")
+  field(EGU , "A")
+  field(SCAN, ".1 second")
+}
+
+record(ai, "$(P)$(CH)V_RD") {
+  field(DISV, "-1")
+  field(SDIS, "$(P)FAIL_ NPP MSI")
+  field(DTYP, "Explore PCI Read32")
+  field(INP , "@$(DEV) 0 108 $(OFFSET)")
+  field(ASLO, "0.1")
+  field(EGU , "V")
+  field(SCAN, ".1 second")
+}
+
+record(ao, "$(P)$(CH)V_CSET") {
+  field(DTYP, "Explore PCI Write32")
+  field(OUT , "@$(DEV) 0 104 $(OFFSET)")
+  field(ASLO, "0.1")
+  field(EGU , "V")
+  field(PINI, "YES")
+  field(HOPR, "4000")
+  field(DRVH, "4001")
+  field(DRVL, "0")
+  field(HIGH, "4000")
+  field(HSV, "INVALID")
+  field(IVOA, "Don't drive outputs")
+}
+
+record(ao, "$(P)$(CH)RUP_CSET") {
+  field(DTYP, "Explore PCI Write32")
+  field(OUT , "@$(DEV) 0 114 $(OFFSET)")
+  field(EGU , "V/s")
+  field(RVAL , "500")
+  field(PINI, "YES")
+  field(HOPR, "700")
+  field(DRVH, "701")
+  field(DRVL, "0")
+  field(HIGH, "700")
+  field(HSV, "INVALID")
+  field(IVOA, "Don't drive outputs")
+}
+
+record(ao, "$(P)$(CH)RDN_CSET") {
+  field(DTYP, "Explore PCI Write32")
+  field(OUT , "@$(DEV) 0 118 $(OFFSET)")
+  field(EGU , "V/s")
+  field(RVAL , "500")
+  field(PINI, "YES")
+  field(HOPR, "700")
+  field(DRVH, "701")
+  field(DRVL, "0")
+  field(HIGH, "700")
+  field(HSV, "INVALID")
+  field(IVOA, "Don't drive outputs")
+}
