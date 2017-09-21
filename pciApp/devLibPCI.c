@@ -18,9 +18,8 @@
 #include <epicsMutex.h>
 #include <iocsh.h>
 
-#include "devLibPCIImpl.h"
-
 #define epicsExportSharedSymbols
+#include "devLibPCIImpl.h"
 #include "devLibPCI.h"
 
 #ifndef CONTAINER
@@ -33,6 +32,11 @@
 #   define CONTAINER(ptr, structure, member) \
         ((structure*)((char*)(ptr) - offsetof(structure, member)))
 # endif
+#endif
+
+#if defined(vxWorks) && !defined(_WRS_VXWORKS_MAJOR)
+/* vxWorks 5 has no strdup */
+#define strdup(x) ({char*s=malloc(strlen(x)+1);s?strcpy(s,x):s;})
 #endif
 
 int devPCIDebug = 0;
@@ -52,6 +56,7 @@ static int devPCIInit_result = 42;
 static
 void regInit(void* junk)
 {
+    (void)junk;
     pciDriversLock = epicsMutexMustCreate();
 }
 
@@ -144,6 +149,7 @@ const char* devLibPCIDriverName()
 static
 void devInit(void* junk)
 {
+  (void)junk;
   epicsThreadOnce(&devPCIReg_once, &regInit, NULL);
   epicsMutexMustLock(pciDriversLock);
   if(!pdevLibPCI && devLibPCIUse(NULL)) {
@@ -230,12 +236,25 @@ int devPCIFindSpec(
         unsigned int opt
 )
 {
-    int err;
+    int err = 0;
     struct bdfmatch find;
     memset(&find, 0, sizeof(find));
 
     if(!found || !spec)
       return S_dev_badArgument;
+
+    /* When originally introduced in 2.8, devPCIFindSpec() parsed as decimal,
+     * which is confusing as BDF are usually shown in hex.
+     * Changed in 2.9 to parse as hex.
+     * TODO: remove this notice after 2.9
+     */
+    if(devPCIDebug>=0) {
+        static int shown=0;
+        if(!shown) {
+            fprintf(stderr, "Notice: devPCIFindSpec() expect B:D.F in hex\n");
+            shown = 1;
+        }
+    }
 
     /* parse the spec. string */
     {
@@ -250,14 +269,14 @@ int devPCIFindSpec(
         {
             unsigned dom, bus, dev, func=0;
 
-            if(sscanf(tok, "%u:%u:%u.%u", &dom, &bus, &dev, &func)>=3) {
+            if(sscanf(tok, "%x:%x:%x.%x", &dom, &bus, &dev, &func)>=3) {
                 find.matchaddr = 1;
                 find.domain = dom;
                 find.b = bus;
                 find.d = dev;
                 find.f = func;
 
-            } else if(sscanf(tok, "%u:%u.%u", &bus, &dev, &func)>=2) {
+            } else if(sscanf(tok, "%x:%x.%x", &bus, &dev, &func)>=2) {
                 find.matchaddr = 1;
                 find.domain = 0;
                 find.b = bus;
@@ -275,17 +294,24 @@ int devPCIFindSpec(
             } else if(sscanf(tok, "inst=%u", &dom)==1) {
                 find.stopat = dom==0 ? 0 : dom-1;
 
-            } else {
+            } else if(strchr(tok, '=')!=NULL) {
                 fprintf(stderr, "Ignoring unknown spec '%s'\n", tok);
+
+            } else {
+                fprintf(stderr, "Error: invalid spec '%s'\n", tok);
+                err = S_dev_badArgument;
             }
         }
 
         free(alloc);
     }
 
+    if(err)
+        return err;
+
     if(devPCIDebug>4) {
         if(find.matchaddr)
-            fprintf(stderr, " Match BDF %u:%u:%u.%u\n",
+            fprintf(stderr, " Match BDF %x:%x:%x.%x\n",
                     find.domain, find.b, find.d, find.f);
         if(find.matchslot)
             fprintf(stderr, " Match slot %s\n", find.slot);
@@ -484,7 +510,7 @@ devPCIShowMatch(int lvl, const char *spec, int vendor, int device)
 void
 devPCIShowDevice(int lvl, const epicsPCIDevice *dev)
 {
-    int i;
+    unsigned int i;
 
     printf("PCI %04x:%02x:%02x.%x IRQ %u\n"
            "  vendor:device %04x:%04x rev %02x\n",

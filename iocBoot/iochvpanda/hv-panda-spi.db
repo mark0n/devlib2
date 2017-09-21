@@ -1,0 +1,205 @@
+# force "reset" by clearing SPI BUSY
+record(bo, "$(P)SPI:RST_CMD") {
+  field(ZNAM, "Reset")
+  field(ONAM, "Reset")
+  field(FLNK, "$(P)SPI:STSCLR_")
+}
+
+# Periodic scanning begins here
+# 1 bit counter to select which
+# SPI register to read in this
+    # cycle.
+record(calcout, "$(P)SPI:SCAN:SEQ_") {
+  field(SCAN, "1 second")
+  field(CALC, "B:=(A+1)&1;B")
+  field(INPA, "$(P)SPI:SCAN:SEQ_ NPP")
+  field(DOPT, "Use OCAL")
+  field(OCAL, "B+1")
+  field(OUT, "$(P)SPI:SCAN:SEL_.SELN PP")
+}
+
+record(fanout, "$(P)SPI:SCAN:SEL_") {
+  field(SELM, "Specified")
+  field(LNK1, "$(P)SPI:ILK:SCAN_")
+  field(LNK2, "$(P)SPI:OI:SCAN_")
+}
+
+# Send command to read interlock status
+record(longout, "$(P)SPI:ILK:SCAN_") {
+  field(VAL, "0x80000019")
+  field(OUT, "$(P)SPI:CMD_ PP")
+}
+
+# Send command to read over current status
+record(longout, "$(P)SPI:OI:SCAN_") {
+  field(VAL, "0x80000018")
+  field(OUT, "$(P)SPI:CMD_ PP")
+}
+
+# SPI command register
+# writes begin an operation
+record(longout, "$(P)SPI:CMD_") {
+  field(DTYP, "Explore PCI Write32")
+  field(OUT, "@$(DEV) 0 2900")
+  # immediately poll the busy status
+  field(FLNK, "$(P)SPI:BUSY_RSTS")
+}
+
+# when busy, periodically re-poll status when operation in progress
+record(bi, "$(P)SPI:BUSY:POLL_") {
+  field(DISV, "0") # do nothing when BUSY==0
+  field(SDIS, "$(P)SPI:BUSY_RSTS")
+  field(SCAN, ".1 second")
+  field(VAL , "0")
+  field(FLNK, "$(P)SPI:BUSY_RSTS")
+}
+
+# Read busy bit from SPI status register
+record(bi, "$(P)SPI:BUSY_RSTS") {
+  field(DISV, "-1")
+  field(SDIS, "$(P)FAIL_ NPP MSI")
+#  field(SCAN, ".1 second")
+  field(DTYP, "Explore PCI Read32")
+  field(INP,  "@$(DEV) 0 2904")
+  field(MASK, "0x100")
+  field(ZNAM, "IDLE/BUSY")
+  field(ONAM, "DONE")
+  field(ZSV , "MINOR")
+  field(FLNK, "$(P)SPI:SCAN:CLR_")
+}
+
+# Conditional  (BUSY==DISV)
+# When BUSY==0 do nothing
+# When BUSY!=0 trigger clear of busy
+# bit and read of data registers.
+record(longout, "$(P)SPI:SCAN:CLR_") {
+  field(DISV, "0")
+  field(SDIS, "$(P)SPI:BUSY_RSTS")
+  field(VAL , "0")
+  field(OUT , "$(P)SPI:STSCLR_.PROC PP")
+  field(FLNK, "$(P)SPI:DONE:FOut_")
+}
+
+# SPI status bit clear register
+record(longout, "$(P)SPI:STSCLR_") {
+  field(DTYP, "Explore PCI Write32")
+  field(OMSL, "closed_loop")
+  field(DOL,  "0x100")
+  field(OUT,  "@$(DEV) 0 2908")
+  field(PINI, "YES") # force clear once on startup
+}
+
+# trigger readout of SPI data register.
+# we read all even though only one has updated
+# since we don't track which command was last issued
+record(fanout, "$(P)SPI:DONE:FOut_") {
+  field(LNK1, "$(P)CH0:ILK_RSTS")
+  field(LNK2, "$(P)CH0:OI_RSTS")
+}
+
+record(bi, "$(P)CH0:ILK_RSTS") {
+  field(DISV, "-1")
+  field(SDIS, "$(P)FAIL_ CP MSI")
+  field(DTYP, "Explore PCI Read32")
+  field(INP, "@$(DEV) 0 3024")
+  field(MASK, "0x80")
+  field(ZNAM, "Operate")
+  field(ONAM, "Trip")
+  field(OSV , "MAJOR")
+  field(FLNK, "$(P)CH1:ILK_RSTS")
+}
+
+record(bi, "$(P)CH1:ILK_RSTS") {
+  field(DISV, "-1")
+  field(SDIS, "$(P)FAIL_ CP MSI")
+  field(DTYP, "Explore PCI Read32")
+  field(INP, "@$(DEV) 0 3024")
+  field(MASK, "0x40")
+  field(ZNAM, "Operate")
+  field(ONAM, "Trip")
+  field(OSV , "MAJOR")
+  field(FLNK, "$(P)CH2:ILK_RSTS")
+}
+
+record(bi, "$(P)CH2:ILK_RSTS") {
+  field(DISV, "-1")
+  field(SDIS, "$(P)FAIL_ CP MSI")
+  field(DTYP, "Explore PCI Read32")
+  field(INP, "@$(DEV) 0 3024")
+  field(MASK, "0x20")
+  field(ZNAM, "Operate")
+  field(ONAM, "Trip")
+  field(OSV , "MAJOR")
+  field(FLNK, "$(P)CH3:ILK_RSTS")
+}
+
+record(bi, "$(P)CH3:ILK_RSTS") {
+  field(DISV, "-1")
+  field(SDIS, "$(P)FAIL_ CP MSI")
+  field(DTYP, "Explore PCI Read32")
+  field(INP, "@$(DEV) 0 3024")
+  field(MASK, "0x10")
+  field(ZNAM, "Operate")
+  field(ONAM, "Trip")
+  field(OSV , "MAJOR")
+  field(FLNK, "$(P)ILK_RSTS")
+}
+
+record(bi, "$(P)ILK_RSTS") {
+  field(DISV, "-1")
+  field(SDIS, "$(P)FAIL_ CP MSI")
+  field(DTYP, "Explore PCI Read32")
+  field(INP, "@$(DEV) 0 3024")
+#  field(MASK, "0x01")
+  field(MASK, "0xff")
+  field(ZNAM, "Operate")
+  field(ONAM, "Trip")
+  field(OSV , "MAJOR")
+}
+
+record(bi, "$(P)CH0:OI_RSTS") {
+  field(DISV, "-1")
+  field(SDIS, "$(P)FAIL_ CP MSI")
+  field(DTYP, "Explore PCI Read32")
+  field(INP, "@$(DEV) 0 3020")
+  field(MASK, "0x80")
+  field(ZNAM, "Operate")
+  field(ONAM, "Trip")
+  field(OSV , "MAJOR")
+  field(FLNK, "$(P)CH1:OI_RSTS")
+}
+
+record(bi, "$(P)CH1:OI_RSTS") {
+  field(DISV, "-1")
+  field(SDIS, "$(P)FAIL_ CP MSI")
+  field(DTYP, "Explore PCI Read32")
+  field(INP, "@$(DEV) 0 3020")
+  field(MASK, "0x40")
+  field(ZNAM, "Operate")
+  field(ONAM, "Trip")
+  field(OSV , "MAJOR")
+  field(FLNK, "$(P)CH2:OI_RSTS")
+}
+
+record(bi, "$(P)CH2:OI_RSTS") {
+  field(DISV, "-1")
+  field(SDIS, "$(P)FAIL_ CP MSI")
+  field(DTYP, "Explore PCI Read32")
+  field(INP, "@$(DEV) 0 3020")
+  field(MASK, "0x20")
+  field(ZNAM, "Operate")
+  field(ONAM, "Trip")
+  field(OSV , "MAJOR")
+  field(FLNK, "$(P)CH3:OI_RSTS")
+}
+
+record(bi, "$(P)CH3:OI_RSTS") {
+  field(DISV, "-1")
+  field(SDIS, "$(P)FAIL_ CP MSI")
+  field(DTYP, "Explore PCI Read32")
+  field(INP, "@$(DEV) 0 3020")
+  field(MASK, "0x10")
+  field(ZNAM, "Operate")
+  field(ONAM, "Trip")
+  field(OSV , "MAJOR")
+}
