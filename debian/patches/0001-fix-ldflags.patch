@@ -9,12 +9,15 @@ Add --as-needed
  1 file changed, 2 insertions(+)
 
 diff --git a/configure/CONFIG_SITE b/configure/CONFIG_SITE
-index 83a7128..aecd695 100644
+index f694b0c..9f6d028 100644
 --- a/configure/CONFIG_SITE
 +++ b/configure/CONFIG_SITE
-@@ -23,3 +23,5 @@
- # If you don't want to install into $(TOP) then
+@@ -24,6 +24,8 @@
  # define INSTALL_LOCATION here
  #INSTALL_LOCATION=<fullpathname>
-+
+
 +USR_LDFLAGS += -Wl,--as-needed
++
+ # we don't actually use 'rset' directly,
+ # but want to suppress deprecation warnings
+ USR_CPPFLAGS += -DUSE_TYPED_RSET

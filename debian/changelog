@@ -1,3 +1,12 @@
+devlib2 (2.10-1) unstable; urgency=medium
+
+  * New upstream version 2.10
+  * Bump up version 2.10
+  * Bump .install and .lintian-overrides to 2.10
+  * Update patches for 2.10
+
+ -- Anton Derbenev <aaderbenev@gmail.com>  Wed, 07 Nov 2018 20:20:03 -0500
+
 devlib2 (2.9-3) unstable; urgency=medium
 
   * Override a Lintian error (unstripped binary)
