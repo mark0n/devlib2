@@ -1,3 +1,9 @@
+devlib2 (2.9-3) unstable; urgency=medium
+
+  * Override a Lintian error (unstripped binary)
+
+ -- Martin Konrad <konrad@frib.msu.edu>  Tue, 06 Nov 2018 18:35:28 -0500
+
 devlib2 (2.9-2) unstable; urgency=medium
 
   * Use build profile to enable RTEMS cross build
