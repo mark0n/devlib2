@@ -3,6 +3,10 @@
  * State University (c) Copyright 2016.
  */
 
+#ifdef __rtems__
+#include <rtems.h> /* for printk() */
+#endif
+
 #include <iostream>
 #include <string>
 #include <stdexcept>
@@ -39,13 +43,13 @@
 
 #include <epicsMMIO.h>
 
+#include "devlibversion.h"
+
 #define epicsExportSharedSymbols
 #include "devLibPCI.h"
 
-#ifdef EPICS_VERSION_INT
 #if EPICS_VERSION_INT>=VERSION_INT(3,15,0,1)
 #  define USE_COMPLETE
-#endif
 #endif
 
 #ifndef __rtems__
@@ -131,7 +135,7 @@ void irq_scan_complete(void *usr, IOSCANPVT scan, int prio)
 #else
 void irq_scan_complete(CALLBACK* pcb)
 {
-    priv *pvt = (priv*)pcb->user;
+    priv *pvt = static_cast<priv*>(pcb->user);
     int prio = pcb->priority;
 #endif
     try {
