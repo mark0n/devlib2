@@ -1,3 +1,4 @@
 epics-devlib2-dev: unstripped-binary-or-object usr/lib/epics/lib/linux-*/libepicspci.so.*
 epics-devlib2-dev: unstripped-binary-or-object usr/lib/epics/lib/linux-*/libepicsvme.so.*
 epics-devlib2-dev: unstripped-binary-or-object usr/lib/epics/lib/linux-*/libexplorepci.so.*
+epics-devlib2-dev: unstripped-binary-or-object usr/lib/epics/bin/linux-*-debug/explore

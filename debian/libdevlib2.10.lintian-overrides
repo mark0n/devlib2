@@ -1,1 +1,7 @@
-libdevlib2.10: package-name-doesnt-match-sonames libepicspci2.10 libepicsvme2.10
+libdevlib2.10: package-name-doesnt-match-sonames libepicspci2.10 libepicsvme2.10 libexplorepci2.10
+
+# Our policy is not to place the .so symlinks in the default search path
+# but rather in /usr/lib/epics/lib/*/
+libdevlib2.10: dev-pkg-without-shlib-symlink usr/lib/x86_64-linux-gnu/libexplorepci.so.2.10 usr/lib/x86_64-linux-gnu/libexplorepci.so
+libdevlib2.10: dev-pkg-without-shlib-symlink usr/lib/x86_64-linux-gnu/libepicspci.so.2.10 usr/lib/x86_64-linux-gnu/libepicspci.so
+libdevlib2.10: dev-pkg-without-shlib-symlink usr/lib/x86_64-linux-gnu/libepicsvme.so.2.10 usr/lib/x86_64-linux-gnu/libepicsvme.so
